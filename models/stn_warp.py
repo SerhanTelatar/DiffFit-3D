@@ -143,4 +143,21 @@ class FeatureExtractor(nn.Module):
 
         return x, features
 
-         
+class FeatureCorrelation(nn.Module):
+    def __init__(self):
+        super(FeatureCorrelation, self).__init__()
+
+    def forward(feature_A, feature_B):
+        B, C, H, W =feature_A.size()
+        
+        feature_A = F.normalize(feature_A, p=2, dim=1)
+        feature_B = F.normalize(feature_B, p=2, dim=1)
+
+        feature_A = feature_A.view(B, C, -1)
+        feature_B = feature_B.view(B, C, -1)
+
+        correlation = torch.bmm(feature_A.transpose(1, 2), feature_B) # (B, H*W, H*W)
+        correlation = correlation.view(B, H * W, H, W)
+
+        return correlation
+    
