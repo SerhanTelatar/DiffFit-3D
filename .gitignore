@@ -1,1 +1,72 @@
-dataset
+# ============================================================================
+# DiffFit-3D .gitignore
+# ============================================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+.env
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Project Data (large files) ---
+checkpoints/
+data/
+outputs/
+results/
+wandb/
+runs/
+logs/
+
+# --- Model files ---
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.bin
+
+# --- Media outputs ---
+*.mp4
+*.avi
+*.mov
+
+# --- Testing ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# --- Serving ---
+serving/triton/model_repository/
+
+# --- Frontend ---
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+
+# --- Misc ---
+*.log
+*.tmp
+.env.local
+.env.production

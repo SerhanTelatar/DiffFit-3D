@@ -1,0 +1,93 @@
+# ============================================================================
+# DiffFit-3D Training Configuration
+# ============================================================================
+
+# --- General ---
+project_name: "difffit-3d"
+experiment_name: "baseline_v1"
+seed: 42
+output_dir: "outputs"
+log_dir: "logs"
+
+# --- Model ---
+model:
+  person_unet: "configs/model/person_unet.yaml"
+  garment_unet: "configs/model/garment_unet.yaml"
+  vae: "configs/model/vae.yaml"
+  pretrained_sd: "checkpoints/pretrained/stable_diffusion_v1.5"
+  pretrained_clip: "checkpoints/pretrained/clip_vit_large"
+
+# --- Data ---
+data:
+  config: "configs/data/dataset.yaml"
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+
+# --- Training ---
+training:
+  epochs: 100
+  gradient_accumulation_steps: 4
+  mixed_precision: "fp16"  # fp16, bf16, or "no"
+  gradient_checkpointing: true
+  max_grad_norm: 1.0
+
+  # Optimizer
+  optimizer:
+    type: "AdamW"
+    lr: 1.0e-5
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+
+  # LR Scheduler
+  lr_scheduler:
+    type: "cosine_with_warmup"
+    warmup_steps: 1000
+    min_lr: 1.0e-7
+
+  # EMA
+  ema:
+    enabled: true
+    decay: 0.9999
+    update_after_step: 100
+    update_every: 10
+
+  # Checkpointing
+  checkpoint:
+    save_every_n_epochs: 5
+    save_every_n_steps: 5000
+    keep_last_n: 3
+    save_dir: "checkpoints"
+
+  # Logging
+  logging:
+    log_every_n_steps: 50
+    sample_every_n_steps: 500
+    use_wandb: true
+    wandb_project: "difffit-3d"
+
+# --- Loss Weights ---
+losses:
+  l1_weight: 1.0
+  perceptual_weight: 0.5
+  lpips_weight: 1.0
+  adversarial_weight: 0.1
+  kl_weight: 0.0001
+
+# --- Noise Scheduler ---
+noise_scheduler:
+  type: "ddpm"
+  num_train_timesteps: 1000
+  beta_start: 0.00085
+  beta_end: 0.012
+  beta_schedule: "scaled_linear"
+  prediction_type: "epsilon"
+  clip_sample: false
+
+# --- Hardware ---
+hardware:
+  accelerator: "gpu"
+  devices: 1
+  strategy: "auto"  # ddp, fsdp, deepspeed
