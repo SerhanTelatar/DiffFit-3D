@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SMPL-X beden tahmini")
     parser.add_argument("--image_dir", default="data/raw/images")
     parser.add_argument("--output_dir", default="data/processed/smplx_params")
-    parser.add_argument("--model_dir", default="checkpoints/pretrained/smplx")
+    parser.add_argument("--model_dir", default="checkpoints/pretrained")
     parser.add_argument("--mesh_dir", default="data/processed/smplx_meshes")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--save_mesh", action="store_true", default=True)

@@ -39,7 +39,7 @@ class SMPLXEstimator:
         device: Hesaplama cihazı.
     """
 
-    def __init__(self, model_path: str = "checkpoints/pretrained/smplx",
+    def __init__(self, model_path: str = "checkpoints/pretrained",
                  regressor: str = "pymaf", gender: str = "neutral",
                  device: str = "cuda"):
         self.model_path = Path(model_path)
