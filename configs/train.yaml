@@ -20,15 +20,15 @@ model:
 # --- Data ---
 data:
   config: "configs/data/dataset.yaml"
-  batch_size: 8
-  num_workers: 4
+  batch_size: 2
+  num_workers: 2
   pin_memory: true
   persistent_workers: true
 
 # --- Training ---
 training:
   epochs: 100
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 8
   mixed_precision: "fp16"  # fp16, bf16, or "no"
   gradient_checkpointing: true
   max_grad_norm: 1.0
@@ -59,13 +59,13 @@ training:
     save_every_n_epochs: 5
     save_every_n_steps: 5000
     keep_last_n: 3
-    save_dir: "checkpoints"
+    save_dir: "checkpoints/runs"
 
   # Logging
   logging:
     log_every_n_steps: 50
     sample_every_n_steps: 500
-    use_wandb: true
+    use_wandb: false
     wandb_project: "difffit-3d"
 
 # --- Loss Weights ---
