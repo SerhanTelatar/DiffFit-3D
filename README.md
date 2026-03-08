@@ -2,52 +2,32 @@
 
 **Geometry-Aware Virtual Try-On: Synergizing 3D Garment Fitting with Controlled Diffusion Models**
 
-DiffFit-3D is a hybrid virtual try-on pipeline that combines 3D human body estimation (SMPL-X) and differentiable garment rendering with Latent Diffusion Models to achieve geometrically accurate, photorealistic garment fitting across diverse body shapes and camera perspectives.
+DiffFit-3D is a virtual try-on pipeline that combines 3D human body estimation (SMPL-X), differentiable garment rendering (PyTorch3D), and Latent Diffusion Models to achieve geometrically accurate, photorealistic garment fitting across diverse body shapes and camera perspectives.
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Input
-        PI[Person Image]
-        GI[Garment Image]
-    end
+![DiffFit-3D Architecture](docs/architecture_diagram_3d.png)
 
-    subgraph Preprocessing
-        PE[Pose Estimator<br/>OpenPose / DWPose]
-        SEG[Segmentation<br/>SAM / ATR]
-        DP[DensePose<br/>UV Mapping]
-        AM[Agnostic Mask<br/>Generator]
-        GE[Garment Encoder<br/>CLIP / DINOv2]
-    end
+### Pipeline Overview
 
-    subgraph DualBranch["Dual-Branch Latent Diffusion"]
-        VAE_E[VAE Encoder]
-        PU[Person UNet<br/>+ ControlNet Conditioning]
-        GU[Garment UNet<br/>+ TPS Warping]
-        CA[Cross-Attention<br/>Fusion]
-        NS[Noise Scheduler<br/>DDPM / DDIM]
-        VAE_D[VAE Decoder]
-    end
+| Stage | Component | Description |
+|-------|-----------|-------------|
+| **Input** | Person Image + 3D Garment Mesh | 2D photo of person + `.obj` garment file |
+| **Body Estimation** | SMPL-X Estimator | Extracts 3D body shape, pose, and joints |
+| **Garment Fitting** | Garment Draper | Drapes 3D garment mesh onto SMPL-X body |
+| **3D Rendering** | PyTorch3D Renderer | Generates RGB render, normal map, depth map |
+| **2D Conditioning** | DWPose + DensePose + ATR | Pose keypoints, UV maps, segmentation |
+| **Diffusion** | Dual-Branch UNet | Person UNet + Garment UNet with cross-attention |
+| **Output** | VAE Decoder | Photorealistic try-on result |
 
-    subgraph Output
-        PP[Post-Processing<br/>Face Restore + Edge Smooth]
-        RES[Try-On Result]
-    end
+### What Makes It Different
 
-    PI --> PE & SEG & DP
-    PE & SEG --> AM
-    GI --> GE
-    PI --> VAE_E
-    VAE_E --> PU
-    AM & PE & DP --> PU
-    GE --> GU
-    PU <-->|Cross-Attention| CA
-    GU <-->|Cross-Attention| CA
-    NS --> PU & GU
-    CA --> VAE_D
-    VAE_D --> PP --> RES
-```
+Unlike 2D-only virtual try-on methods, DiffFit-3D uses **real 3D garment meshes** instead of 2D garment photos. This means:
+
+- 🔄 **Back & side views** — The model renders the garment from any angle, no hallucination needed
+- 📐 **Geometric accuracy** — 3D mesh ensures correct proportions across all body types
+- 🎭 **Normal & depth maps** — Provide the diffusion model with 3D structural cues
+- 💡 **Physically-based lighting** — Phong shading produces realistic shadows and highlights
 
 ## Key Features
 
@@ -55,8 +35,7 @@ graph TB
 - **Body Inclusivity** — 3D mesh-based fitting ensures accuracy across all body types
 - **Photorealism** — ControlNet-guided diffusion with perceptual + adversarial losses
 - **Occlusion Handling** — Robust DensePose-based layering for complex occlusions
-- **Video Support** — Temporal attention + motion modules for consistent animated try-on
-- **Production Ready** — FastAPI serving, Triton support, ONNX export
+- **Multi-Scale Attention** — Spatial, self, and cross-attention at 4 resolution scales
 
 ## Quick Start
 
@@ -64,81 +43,124 @@ graph TB
 
 ```bash
 # Clone
-git clone https://github.com/DiffFit-3D/DiffFit-3D.git
+git clone https://github.com/SerhanTelatar/DiffFit-3D.git
 cd DiffFit-3D
 
-# Install (basic)
-pip install -e .
+# Core dependencies
+pip install -r requirements.txt
 
-# Install (all features including 3D and serving)
-pip install -e ".[dev,serve,threed]"
+# 3D Pipeline dependencies
+pip install smplx trimesh
+pip install "git+https://github.com/facebookresearch/pytorch3d.git"
 ```
 
-### Inference
+### Dataset Setup
 
+1. **Download datasets** (see [Dataset Guide](docs/DATASET_GUIDE.md)):
+   - Person images: [VITON-HD](https://github.com/shadow2496/VITON-HD) → `data/raw/images/`
+   - 3D garment meshes: [CLOTH3D](https://chalearnlap.cvc.uab.cat/) → `data/garments_3d/`
+   - SMPL-X model: [smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) → `checkpoints/pretrained/smplx/`
+
+2. **Organize data**:
 ```bash
-# Single image try-on
-python scripts/inference.py \
-    --config configs/inference.yaml \
-    --person path/to/person.jpg \
-    --garment path/to/garment.jpg \
-    --output results/output.png
+python scripts/setup_data.py
+```
 
-# Video try-on
-python scripts/inference.py \
-    --config configs/inference.yaml \
-    --person path/to/person.mp4 \
-    --garment path/to/garment.jpg \
-    --output results/output.mp4 \
-    --mode video
+3. **Preprocess** (requires GPU):
+```bash
+python src/data/preprocessing/extract_smplx.py
+python src/data/preprocessing/render_garment.py
 ```
 
 ### Training
 
 ```bash
-# Preprocess dataset
-make preprocess
-
-# Train
-make train
-
-# Or with custom config
+# Train on GPU
 python scripts/train.py --config configs/train.yaml
+
+# With 16GB VRAM settings
+python scripts/train.py \
+    --config configs/train.yaml \
+    --batch_size 2 \
+    --gradient_accumulation 8 \
+    --mixed_precision \
+    --gradient_checkpointing
 ```
 
-### Evaluation
+For Colab training, see [`notebooks/DiffFit3D_Train.ipynb`](notebooks/DiffFit3D_Train.ipynb).
+
+### Inference
 
 ```bash
-python scripts/evaluate.py --config configs/inference.yaml
+python scripts/inference.py \
+    --config configs/inference.yaml \
+    --person path/to/person.jpg \
+    --garment path/to/garment.obj \
+    --output results/output.png
 ```
 
 ## Project Structure
 
 ```
 DiffFit-3D/
-├── configs/           # YAML configuration files
+├── configs/
+│   ├── data/              # Dataset & preprocessing configs
+│   └── model/             # UNet, attention, pipeline configs
 ├── src/
-│   ├── models/        # UNet branches, VAE, attention, pipeline
-│   ├── modules/       # Garment encoder, pose, segmentation, warping
-│   ├── training/      # Training loop, losses, LR scheduler, EMA
-│   ├── inference/     # Image & video try-on inference
-│   ├── video/         # Temporal attention, motion, physics
-│   ├── data/          # Dataset, transforms, preprocessing
-│   └── utils/         # Image/video utils, metrics, watermark
-├── scripts/           # CLI entry points
-├── serving/           # FastAPI + Celery + Triton deployment
-├── frontend/          # React demo UI
-├── tests/             # Unit tests
-└── checkpoints/       # Model weights (gitignored)
+│   ├── models/            # UNet branches, VAE, pipeline
+│   │   └── attention/     # Self, cross, spatial attention
+│   ├── modules/           # SMPL-X estimator, mesh renderer,
+│   │                      # garment draper, pose, segmentation
+│   ├── training/          # Training loop, losses, schedulers
+│   ├── inference/         # Image try-on inference
+│   └── data/              # Dataset, transforms, preprocessing
+│       └── preprocessing/ # SMPL-X extraction, 3D rendering
+├── scripts/               # CLI: train, inference, data setup
+├── notebooks/             # Colab training notebook
+├── docs/                  # Architecture docs & guides
+├── data/                  # Datasets (gitignored)
+│   ├── raw/images/        # Person photos (VITON-HD)
+│   ├── garments_3d/       # 3D garment meshes (CLOTH3D)
+│   └── processed/         # Preprocessing outputs
+└── checkpoints/           # Model weights (gitignored)
+    └── pretrained/
+        ├── smplx/         # SMPLX_NEUTRAL.npz
+        └── vposer/        # VPoser v1.0
 ```
+
+## Datasets
+
+| Dataset | Content | Size | Usage |
+|---------|---------|------|-------|
+| [VITON-HD](https://github.com/shadow2496/VITON-HD) | Person photos + preprocessing | ~12 GB | Training images |
+| [CLOTH3D](https://chalearnlap.cvc.uab.cat/) | 3D garment meshes (OBJ + textures) | ~12 GB (val) | 3D garment assets |
+| [SMPL-X](https://smpl-x.is.tue.mpg.de/) | Body model parameters | ~170 MB | 3D body estimation |
+
+## Technical Details
+
+### 3D Pipeline
+
+1. **SMPL-X Body Estimation** → Predicts body shape (β), pose (θ), and expression from person photo
+2. **Garment Draping** → Coarse alignment + neural fine-tuning + collision handling
+3. **Differentiable Rendering** → PyTorch3D Phong renderer produces RGB + normal + depth maps
+4. **Conditioning** → Rendered outputs condition the Person UNet alongside pose, DensePose, and segmentation
+
+### Diffusion Architecture
+
+- **Person UNet**: ResBlock → Self-Attention → Cross-Attention → GEGLU FFN (×N blocks)
+- **Garment UNet**: Multi-scale feature extraction (1/1, 1/2, 1/4, 1/8) → Feature projector
+- **Fusion**: Cross-attention injects garment features into person branch
+- **Scheduler**: DDPM training / DDIM inference (50 steps)
+- **Guidance**: Classifier-free guidance (w=7.5)
 
 ## Citation
 
 ```bibtex
-@software{difffit3d2024,
+@software{difffit3d2025,
     title={DiffFit-3D: Geometry-Aware Virtual Try-On},
-    year={2024},
-    url={https://github.com/DiffFit-3D/DiffFit-3D}
+    author={Serhan Telatar},
+    year={2025},
+    url={https://github.com/SerhanTelatar/DiffFit-3D}
 }
 ```
 

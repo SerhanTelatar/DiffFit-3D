@@ -30,7 +30,7 @@ Thumbs.db
 
 # --- Project Data (large files) ---
 checkpoints/
-data/
+/data/
 outputs/
 results/
 wandb/
