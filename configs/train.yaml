@@ -20,15 +20,15 @@ model:
 # --- Data ---
 data:
   config: "configs/data/dataset.yaml"
-  batch_size: 2
+  batch_size: 4
   num_workers: 2
   pin_memory: true
   persistent_workers: true
 
 # --- Training ---
 training:
-  epochs: 100
-  gradient_accumulation_steps: 8
+  epochs: 25
+  gradient_accumulation_steps: 4
   mixed_precision: "fp16"  # fp16, bf16, or "no"
   gradient_checkpointing: true
   max_grad_norm: 1.0
@@ -44,7 +44,7 @@ training:
   # LR Scheduler
   lr_scheduler:
     type: "cosine_with_warmup"
-    warmup_steps: 1000
+    warmup_steps: 500
     min_lr: 1.0e-7
 
   # EMA

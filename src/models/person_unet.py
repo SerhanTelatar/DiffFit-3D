@@ -161,11 +161,14 @@ class PersonUNet(nn.Module):
         controlnet_channels: int = 5,
         dropout: float = 0.0,
         use_checkpoint: bool = True,
+        
     ):
         super().__init__()
         self.model_channels = model_channels
         self.out_channels = out_channels
         self.use_checkpoint = use_checkpoint
+        self.num_res_blocks = num_res_blocks
+        self.channel_mult = channel_mult
 
         time_emb_dim = model_channels * 4
 
@@ -286,21 +289,28 @@ class PersonUNet(nn.Module):
                 ctrl = F.interpolate(ctrl, size=h.shape[-2:], mode="bilinear", align_corners=False)
             h = h + ctrl
 
-        # Encoder
+        # Encoder 
         skip_connections = [h]
         ds_idx = 0
-        for block_layers in self.encoder_blocks:
-            for layer in block_layers:
-                if isinstance(layer, ResBlock):
-                    h = layer(h, t_emb)
-                elif isinstance(layer, SpatialTransformerBlock):
-                    h = layer(h, context=context)
-            skip_connections.append(h)
+        blocks_per_level = self.num_res_blocks  
 
-        # Apply downsampling between encoder stages
-        for downsample in self.encoder_downsamples:
-            h = downsample(h)
-            skip_connections.append(h)
+        block_idx = 0
+        for level, mult in enumerate(self.channel_mult):
+            for _ in range(blocks_per_level):
+                block_layers = self.encoder_blocks[block_idx]
+                for layer in block_layers:
+                    if isinstance(layer, ResBlock):
+                        h = layer(h, t_emb)
+                    elif isinstance(layer, SpatialTransformerBlock):
+                        h = layer(h, context=context)
+                skip_connections.append(h)
+                block_idx += 1
+
+            # Downsample — her seviyenin HEMEN sonunda
+            if level < len(self.channel_mult) - 1:
+                h = self.encoder_downsamples[ds_idx](h)
+                skip_connections.append(h)
+                ds_idx += 1
 
         # Middle
         h = self.mid_block1(h, t_emb)
@@ -309,14 +319,24 @@ class PersonUNet(nn.Module):
 
         # Decoder
         up_idx = 0
-        for i, block_layers in enumerate(self.decoder_blocks):
-            skip = skip_connections.pop()
-            h = torch.cat([h, skip], dim=1)
-            for layer in block_layers:
-                if isinstance(layer, ResBlock):
-                    h = layer(h, t_emb)
-                elif isinstance(layer, SpatialTransformerBlock):
-                    h = layer(h, context=context)
+        num_levels = len(self.channel_mult)
+        blocks_per_level_dec = self.num_res_blocks + 1
+        for level_idx, (level, mult) in enumerate(list(enumerate(self.channel_mult))[::-1]):
+            for j in range(blocks_per_level_dec):
+                dec_block_idx = level_idx * blocks_per_level_dec + j
+                block_layers = self.decoder_blocks[dec_block_idx]
+                skip = skip_connections.pop()
+                h = torch.cat([h, skip], dim=1)
+                for layer in block_layers:
+                    if isinstance(layer, ResBlock):
+                        h = layer(h, t_emb)
+                    elif isinstance(layer, SpatialTransformerBlock):
+                        h = layer(h, context=context)
+
+            # Upsample — her decoder seviyesinin sonunda
+            if level > 0:
+                h = self.decoder_upsamples[up_idx](h)
+                up_idx += 1
 
         # Output
         h = self.out_norm(h)

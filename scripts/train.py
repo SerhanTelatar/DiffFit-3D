@@ -50,6 +50,15 @@ def main():
         transforms=transforms,
     )
 
+    from torch.utils.data import Subset
+    import random
+
+    subset_ratio = 0.3  # Use 30% of the dataset
+    total = len(train_dataset)
+    indices = random.sample(range(total), int(total * subset_ratio))
+    train_dataset = Subset(train_dataset, indices)
+    print(f"Subset: using {len(train_dataset)}/{total} samples")
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=data_cfg.get("batch_size", 8),
@@ -76,6 +85,14 @@ def main():
     # Resume
     if args.resume:
         trainer.load_checkpoint(args.resume)
+    else:
+        import glob
+        save_dir = config.get("training", {}).get("checkpoint", {}).get("save_dir", "checkpoints/runs")
+        checkpoints = sorted(glob.glob(f"{save_dir}/*.pt"))
+        if checkpoints:
+            latest = checkpoints[-1]
+            print(f"Auto-resuming from: {latest}")
+            trainer.load_checkpoint(latest)
 
     # Train
     trainer.train()
